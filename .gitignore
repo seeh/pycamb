@@ -1,6 +1,7 @@
 html/
 .project
 .pydevproject
+.DS_Store
 build
 src
 CAMB.tar.gz
@@ -8,3 +9,4 @@ CAMB.tar
 camb
 *.pyc
 *~
+*.old*

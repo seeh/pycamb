@@ -5,6 +5,7 @@ These functions are:
   age  - age of the universe in Gyr
   transfers - matter transfer functions
   matter_power - matter power spectrum
+  unsplined_matter_power - matter power spectrum at internal k values of camb
   angular_diameter - distance in Mpc
   get_both  - CMB C_ell and transfer functions   
   
@@ -50,10 +51,11 @@ $alias_string$
 
 """
 
-__all__ = ['camb','age','transfers', 'matter_power', 'get_both', 'angular_diameter']
+__all__ = ['camb','age','transfers', 'matter_power', 'get_both', 'angular_diameter', 'unsplined_matter_power']
 
 
 import numpy as np
+from collections import namedtuple as nt
 import sys
 import _pycamb
 _getcls = _pycamb.pycamb_mod.getcls
@@ -63,6 +65,7 @@ _genpowerandcls = _pycamb.pycamb_mod.genpowerandcls
 _freetransfers = _pycamb.pycamb_mod.freetransfers
 _freepower = _pycamb.pycamb_mod.freematterpower
 _getpower = _pycamb.pycamb_mod.getpower
+_getunsplinedpower = _pycamb.pycamb_mod.getunsplinedpower
 _angulardiameter = _pycamb.pycamb_mod.angulardiameter
 _angulardiametervector = _pycamb.pycamb_mod.angulardiametervector
 import os.path
@@ -83,6 +86,10 @@ defaultValues=$defaultValues$
 NP=len(numericalParameters)+len(logicalParameters)
 NN=len(numericalParameters)
 NM=len(numericalParameters)+len(logicalParameters)
+
+derivedParams = nt('DerivedParams', ['age', 'zstar', 'rstar', 'thetastar',
+    'DAstar', 'zdrag', 'rdrag', 'kD', 'thetaD', 'zEQ', 'keq', 'thetaEQ',
+    'theta_rs_EQ'])
 
 def _build_pvec(**parameters):
     pvec=np.repeat(-1.6375e30,NP)
@@ -114,13 +121,12 @@ def camb(lmax,max_eta_k=None,**parameters):
     """
 Run camb up to the given lmax, with the given parameters and return the Cls.  
 See the docstring for pycamb for more info on parameters.
-Returns T,E,B,X
+Returns T,E,B,X and derived Parameters as a named tuple
     """
     if max_eta_k is None: max_eta_k=2*lmax
     pvec=_build_pvec(**parameters)
-    cls=_getcls(pvec,lmax,max_eta_k)
-    return cls.transpose()
-    
+    cls, dPar=_getcls(pvec,lmax,max_eta_k)
+    return cls.transpose(), derivedParams(*dPar)
     
 
 def age(**parameters):
@@ -133,7 +139,7 @@ See the docstring for pycamb for more info on parameters.
     return age
     
 
-def transfers(redshifts=[0],**parameters):
+def transfers(redshifts=[0],maxk=0.9,**parameters):
     """
 Calculate the matter power transfer function at the specified redshifts.
 The redshifts should be monotonic *DECREASING* i.e. in chronological order.
@@ -144,7 +150,7 @@ See the docstring for pycamb for more info on parameters.
 
     """
    
-    lmax=1000
+    lmax=2000
     pvec=_build_pvec(**parameters)
     redshifts = np.array(redshifts,dtype=np.float64)
     ordered_redshifts = redshifts.copy()
@@ -153,7 +159,7 @@ See the docstring for pycamb for more info on parameters.
     if not (redshifts == ordered_redshifts).all(): sys.stderr.write("WARNING:  Re-ordered redshift vector to be in temporal order.  Ouput will be similarly re-ordered.\n")
     if len(redshifts)>500: raise ValueError("At most 500 redshifts can be computed without changing the hardcoded camb value")
     
-    _gentransfers(pvec,lmax,ordered_redshifts)
+    _gentransfers(pvec,lmax,maxk,ordered_redshifts)
     T = _pycamb.pycamb_mod.transfers.copy()
     K = _pycamb.pycamb_mod.transfers_k.copy()
     S = _pycamb.pycamb_mod.transfers_sigma8.copy()
@@ -192,6 +198,32 @@ See the docstring for pycamb for more info on parameters.
         return kh.squeeze(),power.squeeze(),sigma8.squeeze()
     else:
         return kh.squeeze(),power.squeeze()
+
+def unsplined_matter_power(redshifts=[0],maxk=0.9,**parameters):
+    """
+Calculate the unsplined matter power spectrum at the specified redshifts.
+The redshifts should be monotonic *DECREASING* i.e. in chronological order.
+If they are not the output will be re-ordered as if they were.
+
+Return k, P, and sigma8 as arrays in z
+
+See the docstring for pycamb for more info on parameters.
+
+    """
+
+    pvec=_build_pvec(**parameters)
+    redshifts = np.array(redshifts,dtype=np.float64)
+    ordered_redshifts = redshifts.copy()
+    ordered_redshifts.sort()
+    ordered_redshifts=ordered_redshifts[::-1]
+    if not (redshifts == ordered_redshifts).all(): sys.stderr.write("WARNING:  Re-ordered redshift vector to be in temporal order.  Ouput will be similarly re-ordered.\n")
+    if len(redshifts)>500: raise ValueError("At most 500 redshifts can be computed without changing the hardcoded camb value")
+    _getunsplinedpower(pvec,maxk,ordered_redshifts)
+    power=_pycamb.pycamb_mod.pk.copy()
+    kh=_pycamb.pycamb_mod.matter_power_kh.copy()
+    sigma8=_pycamb.pycamb_mod.matter_power_sigma8.copy()
+    _freepower()
+    return kh.squeeze(),power.squeeze(),sigma8.squeeze()
 
 def get_both(redshifts=[0],lmax=2000,max_eta_k=None,k=np.logspace(-3,0,50),**parameters):
     """

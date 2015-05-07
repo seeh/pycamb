@@ -3,17 +3,21 @@ module pycamb_mod
     double precision, dimension(:), allocatable :: transfers_k,transfers_sigma8
     real, dimension(:,:,:), allocatable :: matter_power
     double precision, dimension(:,:), allocatable :: matter_power_kh
+    double precision, dimension(:,:), allocatable :: PK
     double precision, dimension(:), allocatable :: matter_power_sigma8
     double precision :: output_cl_scale=7.4311e12
     contains
     
-    subroutine getcls(paramVec,lmax,Max_eta_k,cls)
+    subroutine getcls(paramVec,lmax,Max_eta_k,cls,derivedParams)
         use camb
+        use ModelParams
         implicit none
         real, intent(in) :: paramVec($number_parameters$)
         integer, intent(in) :: lmax, Max_eta_k
         real, intent(out) ::  cls(2:lmax,4)
         type(CAMBparams) :: P
+        real, intent(out) ::  derivedParams(13)
+        FeedbackLevel = 1
         call CAMB_SetDefParams(P)
         call makeParameters(paramVec,P)
         P%max_l=lmax
@@ -23,6 +27,7 @@ module pycamb_mod
         call CAMB_GetResults(P)
         call CAMB_GetCls(cls, lmax, 1, .false.)
         cls=cls*output_cl_scale
+        derivedParams=ThermoDerivedParams
     end subroutine getcls
     
     
@@ -37,29 +42,44 @@ module pycamb_mod
         age = CAMB_GetAge(P)
     end subroutine getage
 
-    subroutine gentransfers(paramVec,lmax,nred,redshifts)
+    subroutine gentransfers(paramVec,lmax,maxk,nred,redshifts)
         use camb
         implicit none
         real, intent(in) :: paramVec($number_parameters$)
-        integer, intent(in) :: nred, lmax
+        integer, intent(in) :: nred
+        integer, intent(in) :: lmax
         double precision, intent(in), dimension(nred) :: redshifts
         type(CAMBparams) :: P
         integer :: nr, i
+        real ::  maxk, dlogk
+        real(8) :: sigr8
+        real, parameter :: minkh = 1.0e-4
+        integer in,itf, points, points_check
+
+
+        dlogk = 0.02
         nr = size(redshifts)
+
         call CAMB_SetDefParams(P)
         call makeParameters(paramVec,P)
         P%WantTransfer = .true.
+        P%PK_WantTransfer = .true.
         P%max_l=lmax
         P%Max_l_tensor=lmax
         P%Max_eta_k=2*lmax
         P%Max_eta_k_tensor=2*lmax
-        P%transfer%num_redshifts = nr
+        P%transfer%pk_num_redshifts = nr
+        
+        P%transfer%kmax = 2.0 * maxk * (P%h0/100._dl)
+        P%transfer%k_per_logint = dlogk
+        
         do i=1,nr
-            P%transfer%redshifts(i)=redshifts(i)
+            P%transfer%pk_redshifts(i)=redshifts(i)
         enddo
         call Transfer_SortAndIndexRedshifts(P%Transfer)
-        
+
         call CAMB_GetResults(P)
+
         call freetransfers()
         allocate(transfers(Transfer_max,MT%num_q_trans,nred))
         allocate(transfers_k(MT%num_q_trans))
@@ -79,9 +99,10 @@ module pycamb_mod
         if (allocated(matter_power))    deallocate(matter_power)
         if (allocated(matter_power_kh)) deallocate(matter_power_kh)
         if (allocated(matter_power_sigma8))    deallocate(matter_power_sigma8)
+        if (allocated(PK))    deallocate(PK)
     end subroutine freematterpower
 
-subroutine genpowerandcls(paramVec,lmax,Max_eta_k,nk_input, kh_input, nred,redshifts,cls)
+    subroutine genpowerandcls(paramVec,lmax,Max_eta_k,nk_input, kh_input, nred,redshifts,cls)
             use camb
             implicit none
             real, intent(out) ::  cls(2:lmax,4)
@@ -162,6 +183,7 @@ subroutine genpowerandcls(paramVec,lmax,Max_eta_k,nk_input, kh_input, nred,redsh
         integer, intent(in) :: nk_input
         double precision, intent(in), dimension(nk_input) :: kh_input
         real ::  maxk, dlogk
+        real(8) :: sigr8
         real, parameter :: minkh = 1.0e-4
         integer in,itf, points, points_check
 
@@ -204,14 +226,70 @@ subroutine genpowerandcls(paramVec,lmax,Max_eta_k,nk_input, kh_input, nred,redsh
         if (P%nonlinear==nonlinear_pk .or. P%nonlinear==NonLinear_both) call MatterPowerdata_MakeNonlinear(PK_data)
 
         do itf=1,nr
-            call Transfer_Get_sigma8(MT, matter_power_sigma8(i))
+            ! call Transfer_Get_sigma8(MT, matter_power_sigma8(i))
+            matter_power_sigma8(itf) = MT%sigma_8(itf,1)
             do i=1,nk
                 matter_power_kh(i,itf) = kh_input(i)
                 matter_power(i, 1, itf) = MatterPowerData_k(PK_data, kh_input(i), itf)
             enddo
         enddo
+
     end subroutine getpower
 
+    subroutine getunsplinedpower(paramVec,maxk,nred,redshifts)
+        use camb
+        implicit none
+        real, intent(in) :: paramVec(32)
+        integer, intent(in) :: nred
+        double precision, intent(in), dimension(nred) :: redshifts
+        real, intent(in) :: maxk
+        type(CAMBparams) :: P
+        integer :: nr, i, nk, lmax
+        real :: dlogk
+        real(8) :: sigr8
+        real, parameter :: minkh = 1.0e-4
+        integer in,itf, points, points_check
+
+        dlogk = 0.02
+        nr = size(redshifts)
+
+        call CAMB_SetDefParams(P)
+        call makeParameters(paramVec,P)
+        P%WantTransfer = .true.
+        P%PK_WantTransfer = .true.
+        lmax=2000
+        P%max_l=lmax
+        P%Max_l_tensor=lmax
+        P%Max_eta_k=2*lmax
+        P%Max_eta_k_tensor=2*lmax
+        P%transfer%pk_num_redshifts = nr
+        
+        P%transfer%kmax = 2.0 * maxk * (P%h0/100._dl)
+        P%transfer%k_per_logint = dlogk
+        
+        do i=1,nr
+            P%transfer%pk_redshifts(i)=redshifts(i)
+        enddo
+        call Transfer_SortAndIndexRedshifts(P%Transfer)
+
+        call CAMB_GetResults(P)
+        
+        nk=MT%num_q_trans
+        call freematterpower()
+        allocate(matter_power_kh(nk,nr))
+        allocate(matter_power_sigma8(nr))
+        allocate(PK(nk,nr))
+
+        call Transfer_GetUnsplinedPower(MT, PK)
+
+        do itf=1,nr
+            matter_power_sigma8(itf) = MT%sigma_8(itf,1)
+            do i=1,nk
+                matter_power_kh(i,itf) = MT%TransferData(1,i,1)
+            enddo
+        enddo
+
+    end subroutine getunsplinedpower
 
     function angularDiameter(paramVec,z)
         use ModelParams, only : CAMBparams, camb_angulardiameter => AngularDiameterDistance

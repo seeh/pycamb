@@ -24,12 +24,11 @@ cambsources = ['camb/%s' % f for f in [
     'modules.f90',
     'bessels.f90',
     'equations.f90',
-    'halofit.f90',
+    'halofit_ppf.f90',
     'lensing.f90',
     'SeparableBispectrum.F90',
     'cmbmain.f90',
-    'camb.f90',
-]]
+    'camb.f90']]
 
 for f in cambsources:
   if not os.path.exists(f):
@@ -43,10 +42,11 @@ f2py.run_main(['-m', '_pycamb', '-h', '--overwrite-signature', 'src/py_camb_wrap
          'src/py_camb_wrap.f90', 'skip:', 'makeparameters', ':'])
 
 # Newer versions of f2py (from numpy >= 1.6.2) use specific f90 compile args
+extra_f90_compile_args = ['-ffree-line-length-none', '-Ofast', '-g', '-Dintp=npy_intp', '-fopenmp']
 if StrictVersion(numpy.version.version) > StrictVersion('1.6.1'):
     pycamb_ext = Extension("pycamb._pycamb",
                            ['src/py_camb_wrap.pyf'] + cambsources + ['src/py_camb_wrap.f90'],
-                           extra_f90_compile_args=['-ffree-line-length-none','-O0', '-g', '-Dintp=npy_intp', '-fopenmp'],
+                           extra_f90_compile_args=extra_f90_compile_args,
                            libraries=['gomp'],
                            include_dirs=[get_include()],
                            )
