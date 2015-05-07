@@ -117,7 +117,7 @@ def _build_pvec(**parameters):
     return pvec
     
 
-def camb(lmax,max_eta_k=None,**parameters):
+def camb(lmax,max_eta_k=None,derived_params=True,**parameters):
     """
 Run camb up to the given lmax, with the given parameters and return the Cls.  
 See the docstring for pycamb for more info on parameters.
@@ -126,7 +126,10 @@ Returns T,E,B,X and derived Parameters as a named tuple
     if max_eta_k is None: max_eta_k=2*lmax
     pvec=_build_pvec(**parameters)
     cls, dPar=_getcls(pvec,lmax,max_eta_k)
-    return cls.transpose(), derivedParams(*dPar)
+    if derived_params:
+        return cls.transpose(), derivedParams(*dPar)
+    else:
+        return cls.transpose()
     
 
 def age(**parameters):
@@ -139,7 +142,7 @@ See the docstring for pycamb for more info on parameters.
     return age
     
 
-def transfers(redshifts=[0],maxk=0.9,**parameters):
+def transfers(redshifts=[0],maxk=0.9,derived_params=False,**parameters):
     """
 Calculate the matter power transfer function at the specified redshifts.
 The redshifts should be monotonic *DECREASING* i.e. in chronological order.
@@ -159,12 +162,15 @@ See the docstring for pycamb for more info on parameters.
     if not (redshifts == ordered_redshifts).all(): sys.stderr.write("WARNING:  Re-ordered redshift vector to be in temporal order.  Ouput will be similarly re-ordered.\n")
     if len(redshifts)>500: raise ValueError("At most 500 redshifts can be computed without changing the hardcoded camb value")
     
-    _gentransfers(pvec,lmax,maxk,ordered_redshifts)
+    dPar=_gentransfers(pvec,lmax,maxk,ordered_redshifts)
     T = _pycamb.pycamb_mod.transfers.copy()
     K = _pycamb.pycamb_mod.transfers_k.copy()
     S = _pycamb.pycamb_mod.transfers_sigma8.copy()
     _freetransfers()
-    return K,T,S
+    if derived_params:
+    	return K,T,S,derivedParams(*dPar)
+    else:
+        return K,T,S
 
 
 def matter_power(redshifts=[0],k=np.logspace(-3,0,50), get_sigma8=False,**parameters):

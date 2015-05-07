@@ -42,13 +42,15 @@ module pycamb_mod
         age = CAMB_GetAge(P)
     end subroutine getage
 
-    subroutine gentransfers(paramVec,lmax,maxk,nred,redshifts)
+    subroutine gentransfers(paramVec,lmax,maxk,nred,redshifts,derivedParams)
         use camb
+        use ModelParams
         implicit none
         real, intent(in) :: paramVec($number_parameters$)
         integer, intent(in) :: nred
         integer, intent(in) :: lmax
         double precision, intent(in), dimension(nred) :: redshifts
+        real, intent(out) ::  derivedParams(13)
         type(CAMBparams) :: P
         integer :: nr, i
         real ::  maxk, dlogk
@@ -68,17 +70,21 @@ module pycamb_mod
         P%Max_l_tensor=lmax
         P%Max_eta_k=2*lmax
         P%Max_eta_k_tensor=2*lmax
-        P%transfer%pk_num_redshifts = nr
+        P%transfer%PK_num_redshifts = nr
+        P%transfer%num_redshifts = nr
         
         P%transfer%kmax = 2.0 * maxk * (P%h0/100._dl)
         P%transfer%k_per_logint = dlogk
         
         do i=1,nr
-            P%transfer%pk_redshifts(i)=redshifts(i)
+            P%transfer%redshifts(i)=redshifts(i)
+            P%transfer%PK_redshifts(i)=redshifts(i)
+            P%transfer%PK_redshifts_index(i)=i
         enddo
         call Transfer_SortAndIndexRedshifts(P%Transfer)
 
         call CAMB_GetResults(P)
+        derivedParams=ThermoDerivedParams
 
         call freetransfers()
         allocate(transfers(Transfer_max,MT%num_q_trans,nred))
@@ -131,15 +137,15 @@ module pycamb_mod
             P%Max_eta_k=Max_eta_k
             P%Max_eta_k_tensor=Max_eta_k
             P%transfer%PK_num_redshifts = nr
-
-            do i=1,nr
-                P%transfer%pk_redshifts(i)=redshifts(i)
-            enddo
-
             P%transfer%num_redshifts = nr
             P%transfer%kmax = maxk * (P%h0/100._dl)
             P%transfer%k_per_logint = dlogk
 
+            do i=1,nr
+                P%transfer%redshifts(i)=redshifts(i)
+                P%transfer%PK_redshifts(i)=redshifts(i)
+                P%transfer%PK_redshifts_index(i)=i
+            enddo
 
             call Transfer_SortAndIndexRedshifts(P%Transfer)
 
@@ -204,13 +210,16 @@ module pycamb_mod
         P%Max_l_tensor=lmax
         P%Max_eta_k=2*lmax
         P%Max_eta_k_tensor=2*lmax
-        P%transfer%pk_num_redshifts = nr
+        P%transfer%PK_num_redshifts = nr
+        P%transfer%num_redshifts = nr
         
         P%transfer%kmax = maxk * (P%h0/100._dl)
         P%transfer%k_per_logint = dlogk
         
         do i=1,nr
-            P%transfer%pk_redshifts(i)=redshifts(i)
+            P%transfer%PK_redshifts(i)=redshifts(i)
+            P%transfer%PK_redshifts_index(i)=i
+            P%transfer%redshifts(i)=redshifts(i)
         enddo
         call Transfer_SortAndIndexRedshifts(P%Transfer)
 
@@ -262,13 +271,16 @@ module pycamb_mod
         P%Max_l_tensor=lmax
         P%Max_eta_k=2*lmax
         P%Max_eta_k_tensor=2*lmax
-        P%transfer%pk_num_redshifts = nr
+        P%transfer%PK_num_redshifts = nr
+        P%transfer%num_redshifts = nr
         
         P%transfer%kmax = 2.0 * maxk * (P%h0/100._dl)
         P%transfer%k_per_logint = dlogk
         
         do i=1,nr
-            P%transfer%pk_redshifts(i)=redshifts(i)
+            P%transfer%PK_redshifts(i)=redshifts(i)
+            P%transfer%redshifts(i)=redshifts(i)
+            P%transfer%PK_redshifts_index(i)=i
         enddo
         call Transfer_SortAndIndexRedshifts(P%Transfer)
 
