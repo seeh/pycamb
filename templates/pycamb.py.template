@@ -5,7 +5,7 @@ These functions are:
   age  - age of the universe in Gyr
   transfers - matter transfer functions
   matter_power - matter power spectrum
-  unsplined_matter_power - matter power spectrum at internal k values of camb
+  unsplined_matter_power - unsplined Pk at internal k values of camb
   angular_diameter - distance in Mpc
   get_both  - CMB C_ell and transfer functions   
   
@@ -117,11 +117,13 @@ def _build_pvec(**parameters):
     return pvec
     
 
-def camb(lmax,max_eta_k=None,derived_params=True,**parameters):
+def camb(lmax,max_eta_k=None,derived_params=False,**parameters):
     """
-Run camb up to the given lmax, with the given parameters and return the Cls.  
-See the docstring for pycamb for more info on parameters.
-Returns T,E,B,X and derived Parameters as a named tuple
+    Run camb up to the given lmax, with the given parameters and return Cls.  
+    Returns T,E,B,X. Also returns derived Parameters as a named tuple if 
+    derived_params is True.
+
+    See the docstring for pycamb for more info on parameters.
     """
     if max_eta_k is None: max_eta_k=2*lmax
     pvec=_build_pvec(**parameters)
@@ -134,9 +136,10 @@ Returns T,E,B,X and derived Parameters as a named tuple
 
 def age(**parameters):
     """
-Return the age of the unverse in Gyr with the given parameters.  
-See the docstring for pycamb for more info on parameters.
-"""
+    Return the age of the unverse in Gyr with the given parameters.  
+
+    See the docstring for pycamb for more info on parameters.
+    """
     pvec=_build_pvec(**parameters)
     age=_getage(pvec)
     return age
@@ -144,13 +147,13 @@ See the docstring for pycamb for more info on parameters.
 
 def transfers(redshifts=[0],maxk=0.9,derived_params=False,**parameters):
     """
-Calculate the matter power transfer function at the specified redshifts.
-The redshifts should be monotonic *DECREASING* i.e. in chronological order.
-If they are not the output will be re-ordered as if they were.
-Return k, T, sigma8 as arrays in z
+    Calculate the matter power transfer function at the specified redshifts.
+    Redshifts should be monotonic *DECREASING* i.e. in chronological order.
+    If they are not the output will be re-ordered as if they were.
+    Return k, T, sigma8 as arrays in z. Also returns derived Parameters as a
+    named tuple if  derived_params is True.
 
-See the docstring for pycamb for more info on parameters.
-
+    See the docstring for pycamb for more info on parameters.
     """
    
     lmax=2000
@@ -175,16 +178,15 @@ See the docstring for pycamb for more info on parameters.
 
 def matter_power(redshifts=[0],k=np.logspace(-3,0,50), get_sigma8=False,**parameters):
     """
-Calculate the matter power spectrum at the specified redshifts.
-The redshifts should be monotonic *DECREASING* i.e. in chronological order.
-If they are not the output will be re-ordered as if they were.
+    Calculate the matter power spectrum at the specified redshifts.
+    The redshifts should be monotonic *DECREASING* i.e. in chronological order.
+    If they are not the output will be re-ordered as if they were.
+    
+    Return k and P as arrays in z
+    
+    If the parameter get_sigma8 is set then that will also be returned.
 
-Return k and P as arrays in z
-
-If the parameter get_sigma8 is set then that will also be returned.
-
-See the docstring for pycamb for more info on parameters.
-
+    See the docstring for pycamb for more info on parameters.
     """
 
     pvec=_build_pvec(**parameters)
@@ -207,14 +209,13 @@ See the docstring for pycamb for more info on parameters.
 
 def unsplined_matter_power(redshifts=[0],maxk=0.9,**parameters):
     """
-Calculate the unsplined matter power spectrum at the specified redshifts.
-The redshifts should be monotonic *DECREASING* i.e. in chronological order.
-If they are not the output will be re-ordered as if they were.
-
-Return k, P, and sigma8 as arrays in z
-
-See the docstring for pycamb for more info on parameters.
-
+    Calculate the unsplined matter power spectrum at the specified redshifts.
+    The redshifts should be monotonic *DECREASING* i.e. in chronological order.
+    If they are not the output will be re-ordered as if they were.
+    
+    Return k, P, and sigma8 as arrays in z
+    
+    See the docstring for pycamb for more info on parameters.
     """
 
     pvec=_build_pvec(**parameters)
@@ -233,15 +234,14 @@ See the docstring for pycamb for more info on parameters.
 
 def get_both(redshifts=[0],lmax=2000,max_eta_k=None,k=np.logspace(-3,0,50),**parameters):
     """
-Calculate BOTH the matter power spectrum at the specified redshifts and the CMB C_ell
-
-The redshifts should be monotonic *DECREASING* i.e. in chronological order.
-If they are not the output will be re-ordered as if they were.
-
-Return (T,E,B,X),  k, T, sigma8, the latter 3 as arrays in z
-
-See the docstring for pycamb for more info on parameters.
-
+    Calculate BOTH the matter power spectrum at the specified redshifts and the CMB C_ell
+    
+    The redshifts should be monotonic *DECREASING* i.e. in chronological order.
+    If they are not the output will be re-ordered as if they were.
+    
+    Return (T,E,B,X),  k, T, sigma8, the latter 3 as arrays in z
+    
+    See the docstring for pycamb for more info on parameters.
     """
     if max_eta_k is None: max_eta_k=2*lmax
     pvec=_build_pvec(**parameters)
@@ -261,15 +261,15 @@ See the docstring for pycamb for more info on parameters.
     
 def angular_diameter(z,**parameters):
     """
-Calculate the angular diameter distance to the given redshift(s).
-
-The redshifts should be monotonic *DECREASING* i.e. in chronological order.
-If they are not the output will be re-ordered as if they were.
-
-Return d_A(z)
-
-See the docstring for pycamb for more info on parameters.
-"""
+    Calculate the angular diameter distance to the given redshift(s).
+    
+    The redshifts should be monotonic *DECREASING* i.e. in chronological order.
+    If they are not the output will be re-ordered as if they were.
+    
+    Return d_A(z)
+    
+    See the docstring for pycamb for more info on parameters.
+    """
     pvec=_build_pvec(**parameters)
     if isinstance(z,float) or len(z)==1:
         return _angulardiameter(pvec,z)
